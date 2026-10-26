@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The Bravia IP Control API is plain HTTP. Cleartext is permitted app-wide
+  because the config format cannot express "private IP ranges only"; the app
+  itself only ever builds URLs from the LAN address entered in Settings.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

@@ -1,0 +1,23 @@
+# Build output
+build/
+.gradle/
+.cxx/
+.externalNativeBuild/
+.kotlin/
+/captures
+app/build/
+
+# Local machine config
+local.properties
+*.iml
+.idea/
+.DS_Store
+
+# Signing material
+*.jks
+*.keystore
+keystore.properties
+
+# Keep release APK for release tracking
+*.apk
+!Zapster-v1.0.0.apk
