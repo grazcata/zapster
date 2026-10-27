@@ -46,6 +46,7 @@ fun KeyButton(
     size: Dp = 64.dp,
     container: Color = MaterialTheme.colorScheme.surfaceVariant,
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    iconSize: Dp? = null,
 ) {
     Box(
         modifier = modifier
@@ -58,7 +59,7 @@ fun KeyButton(
             imageVector = icon,
             contentDescription = null,
             tint = tint,
-            modifier = Modifier.size(size * 0.45f),
+            modifier = Modifier.size(iconSize ?: (size * 0.45f)),
         )
     }
 }
@@ -159,10 +160,10 @@ fun DPad(
     leftIcon: ImageVector,
     rightIcon: ImageVector,
     modifier: Modifier = Modifier,
-    /** Fixed rather than full-width, which on a tall phone left it dominating the screen. */
-    size: Dp = 240.dp,
+    size: Dp = 280.dp,
 ) {
-    val arrow = size * 0.27f
+    val arrow = size * 0.33f
+    val arrowIcon = 48.dp
     Box(
         modifier = modifier
             .size(size)
@@ -176,6 +177,7 @@ fun DPad(
                 description = "Up",
                 onClick = onUp,
                 size = arrow,
+                iconSize = arrowIcon,
                 container = Color.Transparent,
                 modifier = Modifier.align(Alignment.TopCenter),
             )
@@ -184,6 +186,7 @@ fun DPad(
                 description = "Down",
                 onClick = onDown,
                 size = arrow,
+                iconSize = arrowIcon,
                 container = Color.Transparent,
                 modifier = Modifier.align(Alignment.BottomCenter),
             )
@@ -192,6 +195,7 @@ fun DPad(
                 description = "Left",
                 onClick = onLeft,
                 size = arrow,
+                iconSize = arrowIcon,
                 container = Color.Transparent,
                 modifier = Modifier.align(Alignment.CenterStart),
             )
@@ -200,6 +204,7 @@ fun DPad(
                 description = "Right",
                 onClick = onRight,
                 size = arrow,
+                iconSize = arrowIcon,
                 container = Color.Transparent,
                 modifier = Modifier.align(Alignment.CenterEnd),
             )
@@ -207,7 +212,7 @@ fun DPad(
         TextKey(
             label = "OK",
             onClick = onOk,
-            size = size * 0.3f,
+            size = size * 0.33f,
             container = MaterialTheme.colorScheme.primaryContainer,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )
