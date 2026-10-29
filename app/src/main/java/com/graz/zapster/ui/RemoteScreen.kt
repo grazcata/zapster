@@ -19,6 +19,9 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.InstallMobile
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
@@ -35,6 +38,8 @@ import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -50,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.graz.zapster.ConnectionState
+import com.graz.zapster.SideloadStatus
 import com.graz.zapster.UiState
 import com.graz.zapster.data.atv.AtvKey
 
@@ -77,6 +83,8 @@ fun RemoteScreen(
     state: UiState,
     onPress: (Int) -> Unit,
     onSendText: (String, Boolean) -> Unit,
+    onPickApk: () -> Unit,
+    onDismissSideload: () -> Unit,
     onLaunchApp: (String) -> Unit,
     onPower: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
@@ -95,6 +103,7 @@ fun RemoteScreen(
     ) {
         StatusHeader(
             state = state,
+            onPickApk = onPickApk,
             onOpenSettings = onOpenSettings,
             onReconnect = onReconnect,
         )
@@ -260,11 +269,20 @@ fun RemoteScreen(
             },
         )
     }
+
+    if (state.sideload.active || state.sideload.isSuccess || state.sideload.isError) {
+        SideloadDialog(
+            sideload = state.sideload,
+            onDismiss = onDismissSideload,
+            onOpenOnTv = { url -> onLaunchApp(url) },
+        )
+    }
 }
 
 @Composable
 private fun StatusHeader(
     state: UiState,
+    onPickApk: () -> Unit,
     onOpenSettings: () -> Unit,
     onReconnect: () -> Unit,
 ) {
@@ -318,6 +336,13 @@ private fun StatusHeader(
             if (state.connection == ConnectionState.Error) {
                 TextKey(label = "Retry", onClick = onReconnect, size = 48.dp)
             }
+            KeyButton(
+                icon = Icons.Rounded.InstallMobile,
+                description = "Installer un APK sur la TV",
+                onClick = onPickApk,
+                size = 48.dp,
+                container = Color.Transparent,
+            )
             KeyButton(
                 icon = Icons.Rounded.Settings,
                 description = "Settings",
@@ -374,6 +399,104 @@ private fun KeyboardInputDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) {
                 Text("Annuler")
+            }
+        }
+    )
+}
+
+@Composable
+private fun SideloadDialog(
+    sideload: SideloadStatus,
+    onDismiss: () -> Unit,
+    onOpenOnTv: (String) -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = { if (!sideload.active) onDismiss() },
+        title = {
+            Text(
+                text = when {
+                    sideload.active -> "Installation sur la TV"
+                    sideload.isSuccess -> "Installation réussie !"
+                    sideload.httpFallbackUrl != null -> "Lien de téléchargement TV"
+                    else -> "Échec de l'installation"
+                }
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                if (sideload.active) {
+                    CircularProgressIndicator(modifier = Modifier.size(48.dp))
+                    Text(
+                        text = sideload.progress,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                } else if (sideload.isSuccess) {
+                    Icon(
+                        imageVector = Icons.Rounded.CheckCircle,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(56.dp),
+                    )
+                    Text(
+                        text = sideload.progress,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                } else {
+                    if (sideload.httpFallbackUrl != null) {
+                        Text(
+                            text = "Le port ADB 5555 est fermé sur la TV (débogage désactivé). " +
+                                "Zapster a démarré un serveur local pour transférer l'APK.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedTextField(
+                            value = sideload.httpFallbackUrl,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("URL pour Downloader / Navigateur TV") },
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(56.dp),
+                        )
+                        Text(
+                            text = sideload.progress,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                        sideload.errorDetails?.let { details ->
+                            Text(
+                                text = details,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (!sideload.active) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    sideload.httpFallbackUrl?.let { url ->
+                        Button(onClick = { onOpenOnTv(url) }) {
+                            Text("Ouvrir sur la TV")
+                        }
+                    }
+                    Button(onClick = onDismiss) {
+                        Text("Fermer")
+                    }
+                }
             }
         }
     )

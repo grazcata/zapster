@@ -1,6 +1,7 @@
 package com.graz.zapster
 
 import android.app.Application
+import android.net.Uri
 import android.os.Build
 import android.util.Log
 import android.os.VibrationEffect
@@ -16,15 +17,28 @@ import com.graz.zapster.data.atv.AtvCertificateStore
 import com.graz.zapster.data.atv.AtvKey
 import com.graz.zapster.data.atv.AtvPairingSession
 import com.graz.zapster.data.atv.AtvRemoteClient
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
+import java.net.InetSocketAddress
+import java.net.NetworkInterface
 
 enum class ConnectionState { Unknown, Connecting, Connected, Error }
 
 /** Where the user is in the pairing flow. */
 enum class PairingStage { Idle, Requesting, AwaitingCode, Completing }
+
+data class SideloadStatus(
+    val active: Boolean = false,
+    val progress: String = "",
+    val isSuccess: Boolean = false,
+    val isError: Boolean = false,
+    val errorDetails: String? = null,
+    val httpFallbackUrl: String? = null,
+)
 
 data class UiState(
     val settings: TvSettings = TvSettings(),
@@ -38,6 +52,7 @@ data class UiState(
     val scanCompleted: Boolean = false,
     val pairing: PairingStage = PairingStage.Idle,
     val pairingHost: String = "",
+    val sideload: SideloadStatus = SideloadStatus(),
 )
 
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
@@ -304,7 +319,185 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         _state.value = _state.value.copy(message = null)
     }
 
+    fun dismissSideload() {
+        _state.value = _state.value.copy(sideload = SideloadStatus())
+    }
+
+    /**
+     * Sideload an APK to the TV.
+     * First attempts direct ADB install on port 5555.
+     * If ADB is unreachable (USB debugging disabled), starts a local HTTP server
+     * and sends the download link to the TV (or displays it for Downloader).
+     */
+    fun installApk(uri: Uri, fileName: String?) {
+        val host = _state.value.settings.host
+        if (host.isBlank()) {
+            report("Aucun téléviseur sélectionné")
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val displayName = fileName ?: "application.apk"
+            _state.value = _state.value.copy(
+                sideload = SideloadStatus(
+                    active = true,
+                    progress = "Préparation de $displayName..."
+                )
+            )
+
+            val context = getApplication<Application>()
+            val tempFile = File(context.cacheDir, "sideload_temp.apk")
+            try {
+                // 1. Copy stream from Uri to temporary file
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    tempFile.outputStream().use { output ->
+                        input.copyTo(output)
+                    }
+                } ?: error("Impossible de lire le fichier APK")
+
+                val sizeMb = String.format("%.1f", tempFile.length() / (1024.0 * 1024.0))
+                _state.value = _state.value.copy(
+                    sideload = SideloadStatus(
+                        active = true,
+                        progress = "Connexion ADB à $host:5555 ($sizeMb Mo)..."
+                    )
+                )
+
+                // 2. Try direct ADB install via dadb
+                var adbSuccess = false
+                var adbError: String? = null
+                try {
+                    dadb.Dadb.create(host, 5555).use { dadbClient ->
+                        _state.value = _state.value.copy(
+                            sideload = SideloadStatus(
+                                active = true,
+                                progress = "Installation en cours sur la TV ($sizeMb Mo)..."
+                            )
+                        )
+                        dadbClient.install(tempFile)
+                        adbSuccess = true
+                    }
+                } catch (t: Throwable) {
+                    Log.w(TAG, "ADB install failed: ${t.message}", t)
+                    adbError = t.message ?: "Échec de connexion au port ADB 5555"
+                }
+
+                if (adbSuccess) {
+                    _state.value = _state.value.copy(
+                        sideload = SideloadStatus(
+                            active = false,
+                            isSuccess = true,
+                            progress = "$displayName a été installée avec succès sur la TV !"
+                        )
+                    )
+                    haptic()
+                    return@launch
+                }
+
+                // 3. Fallback: Start local HTTP server
+                _state.value = _state.value.copy(
+                    sideload = SideloadStatus(
+                        active = true,
+                        progress = "Port ADB fermé. Démarrage du serveur de partage local..."
+                    )
+                )
+                val serverUrl = startLocalApkServer(tempFile)
+                _state.value = _state.value.copy(
+                    sideload = SideloadStatus(
+                        active = false,
+                        isError = true,
+                        errorDetails = adbError,
+                        httpFallbackUrl = serverUrl,
+                        progress = "Le port ADB est fermé. Téléchargez l'APK sur la TV via ce lien :"
+                    )
+                )
+                // Launch on TV if remote is connected
+                remote?.launchAppLink(serverUrl)
+            } catch (e: Throwable) {
+                Log.e(TAG, "Sideload error", e)
+                _state.value = _state.value.copy(
+                    sideload = SideloadStatus(
+                        active = false,
+                        isError = true,
+                        errorDetails = e.message,
+                        progress = "Erreur lors du traitement de l'APK"
+                    )
+                )
+            }
+        }
+    }
+
+    private var serverSocket: java.net.ServerSocket? = null
+    private var serverThread: Thread? = null
+
+    private fun startLocalApkServer(file: File): String {
+        stopLocalApkServer()
+        val ip = getLocalIpAddress() ?: "127.0.0.1"
+        val port = 8080
+        val server = java.net.ServerSocket(port)
+        serverSocket = server
+
+        val thread = Thread {
+            try {
+                while (!server.isClosed) {
+                    val socket = server.accept()
+                    Thread {
+                        try {
+                            socket.use { s ->
+                                val inStream = s.getInputStream()
+                                val outStream = s.getOutputStream()
+                                val reader = inStream.bufferedReader()
+                                val requestLine = reader.readLine() ?: return@use
+
+                                val responseHeader = "HTTP/1.1 200 OK\r\n" +
+                                        "Content-Type: application/vnd.android.package-archive\r\n" +
+                                        "Content-Length: ${file.length()}\r\n" +
+                                        "Content-Disposition: attachment; filename=\"app.apk\"\r\n" +
+                                        "Connection: close\r\n\r\n"
+                                outStream.write(responseHeader.toByteArray(Charsets.UTF_8))
+                                file.inputStream().use { fileIn ->
+                                    fileIn.copyTo(outStream)
+                                }
+                                outStream.flush()
+                            }
+                        } catch (ignored: Exception) {}
+                    }.start()
+                }
+            } catch (ignored: Exception) {}
+        }
+        thread.isDaemon = true
+        thread.start()
+        serverThread = thread
+
+        return "http://$ip:$port/app.apk"
+    }
+
+    private fun stopLocalApkServer() {
+        runCatching { serverSocket?.close() }
+        serverSocket = null
+        serverThread = null
+    }
+
+    private fun getLocalIpAddress(): String? {
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            while (interfaces.hasMoreElements()) {
+                val iface = interfaces.nextElement()
+                if (iface.isLoopback || !iface.isUp) continue
+                val addresses = iface.inetAddresses
+                while (addresses.hasMoreElements()) {
+                    val addr = addresses.nextElement()
+                    if (!addr.isLoopbackAddress && addr is java.net.Inet4Address) {
+                        return addr.hostAddress
+                    }
+                }
+            }
+        } catch (ignored: Exception) {}
+        return null
+    }
+
     override fun onCleared() {
+        stopLocalApkServer()
         remote?.close()
         pairingSession?.close()
         super.onCleared()

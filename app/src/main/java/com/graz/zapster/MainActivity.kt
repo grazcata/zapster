@@ -1,9 +1,14 @@
 package com.graz.zapster
 
+import android.content.Context
+import android.net.Uri
 import android.os.Bundle
+import android.provider.OpenableColumns
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -15,6 +20,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.graz.zapster.ui.RemoteScreen
@@ -38,6 +44,16 @@ class MainActivity : ComponentActivity() {
 private fun TvRemoteApp(viewModel: RemoteViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+
+    val apkPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val fileName = queryFileName(context, it)
+            viewModel.installApk(it, fileName)
+        }
+    }
 
     // Surface transport failures without stealing focus from the keypad.
     LaunchedEffect(state.message) {
@@ -73,6 +89,8 @@ private fun TvRemoteApp(viewModel: RemoteViewModel = viewModel()) {
                 state = state,
                 onPress = viewModel::press,
                 onSendText = viewModel::sendText,
+                onPickApk = { apkPickerLauncher.launch("*/*") },
+                onDismissSideload = viewModel::dismissSideload,
                 onLaunchApp = viewModel::launchApp,
                 onPower = viewModel::setPower,
                 onOpenSettings = viewModel::openSettings,
@@ -81,4 +99,15 @@ private fun TvRemoteApp(viewModel: RemoteViewModel = viewModel()) {
             )
         }
     }
+}
+
+private fun queryFileName(context: Context, uri: Uri): String? {
+    return runCatching {
+        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (nameIndex != -1 && cursor.moveToFirst()) {
+                cursor.getString(nameIndex)
+            } else null
+        }
+    }.getOrNull()
 }

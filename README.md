@@ -19,8 +19,15 @@ La plupart des télécommandes bricolées tentent de passer par ADB (port 5555) 
 
 ## 🚀 Fonctionnalités
 
+- **Installation d'APKs sur la TV (Sideload)** :
+  - Bouton dédié dans l'en-tête permettant de sélectionner n'importe quel fichier APK téléchargé sur votre smartphone.
+  - **Installation silencieuse directe via ADB** (port 5555) sans manipulation sur la télévision.
+  - **Serveur de partage local HTTP automatique** : si le port ADB est fermé, Zapster héberge temporairement l'APK en local et ouvre le lien de téléchargement direct sur la TV pour Downloader / navigateur.
+- **Saisie de texte & Clavier virtuel** :
+  - Bouton clavier dédié pour saisir des recherches YouTube/Netflix, mots de passe et URLs depuis le smartphone.
+  - Bouton *Envoyer* et *Envoyer & Valider (↵)* via le protocole IME officiel.
 - **Navigation D-Pad fluide & réactive** :
-  - Pavé directionnel (Haut, Bas, Gauche, Droite, bouton central **OK**).
+  - Pavé directionnel circulaire agrandi (280 dp) avec flèches larges (48 dp).
   - Touches système natives : **Accueil (Home)**, **Retour**, **Alimentation (Power)**, **Sources (Inputs HDMI/Tuner)**.
 - **Gestion audio complète** :
   - **Volume +**, **Volume −**, **Mute**.

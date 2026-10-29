@@ -12,8 +12,8 @@ android {
         applicationId = "com.graz.zapster"
         minSdk = 26
         targetSdk = 34
-        versionCode = 3
-        versionName = "1.0.2"
+        versionCode = 4
+        versionName = "1.1.0"
     }
 
     signingConfigs {
@@ -51,6 +51,10 @@ android {
     packaging {
         resources {
             excludes += "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/LICENSE-notice.md"
+            excludes += "META-INF/LICENSE*"
+            excludes += "META-INF/NOTICE*"
         }
     }
 }
@@ -71,6 +75,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.bouncycastle.prov)
     implementation(libs.bouncycastle.pkix)
+    implementation("dev.mobile:dadb:1.2.9")
 
     debugImplementation(libs.androidx.ui.tooling)
 }
