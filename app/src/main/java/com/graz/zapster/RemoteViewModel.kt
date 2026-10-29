@@ -248,6 +248,23 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         client.sendKey(keyCode)
     }
 
+    /** Sends a text string directly to the active input field on the TV. */
+    fun sendText(text: String, pressEnter: Boolean = false) {
+        val client = remote
+        if (client == null || !client.isConnected) {
+            report("Not connected to the TV")
+            return
+        }
+        haptic()
+        client.sendText(text)
+        if (pressEnter) {
+            viewModelScope.launch {
+                kotlinx.coroutines.delay(200)
+                client.sendKey(AtvKey.DPAD_CENTER)
+            }
+        }
+    }
+
     fun launchApp(link: String) {
         val client = remote
         if (client == null || !client.isConnected) {

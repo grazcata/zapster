@@ -172,6 +172,27 @@ class AtvRemoteClient(
         message(FIELD_APP_LINK) { string(1, link) }
     }
 
+    /** Sends text to the TV via Android TV Remote v2 IME batch edit. */
+    fun sendText(text: String) {
+        if (text.isEmpty()) return
+        Log.d(TAG, "tx text=$text")
+        send {
+            message(FIELD_IME_BATCH_EDIT) {
+                varint(1, 0) // ime_counter
+                varint(2, 0) // field_counter
+                message(3) { // edit_info
+                    varint(1, 1) // insert
+                    message(2) { // text_field_status
+                        val pos = (text.length - 1).coerceAtLeast(0)
+                        varint(1, pos)
+                        varint(2, pos)
+                        string(3, text)
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * Encodes on the calling thread but always writes on [writer].
      *
@@ -222,12 +243,13 @@ class AtvRemoteClient(
         const val FIELD_PING_REQUEST = 8
         const val FIELD_PING_RESPONSE = 9
         const val FIELD_KEY_INJECT = 10
+        const val FIELD_IME_BATCH_EDIT = 21
         const val FIELD_START = 40
         const val FIELD_APP_LINK = 90
 
         const val DIRECTION_SHORT = 3
 
-        /** PING | KEY | POWER | VOLUME | APP_LINK */
-        const val FEATURES = 1 or 2 or 32 or 64 or 512
+        /** PING | KEY | IME | POWER | VOLUME | APP_LINK */
+        const val FEATURES = 1 or 2 or 4 or 32 or 64 or 512
     }
 }

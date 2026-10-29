@@ -19,6 +19,7 @@ import androidx.compose.material.icons.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowLeft
 import androidx.compose.material.icons.rounded.KeyboardArrowRight
@@ -32,9 +33,17 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.VolumeDown
 import androidx.compose.material.icons.rounded.VolumeOff
 import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,12 +76,14 @@ private val youtubeRed = Color(0xFFFF0033)
 fun RemoteScreen(
     state: UiState,
     onPress: (Int) -> Unit,
+    onSendText: (String, Boolean) -> Unit,
     onLaunchApp: (String) -> Unit,
     onPower: (Boolean) -> Unit,
     onOpenSettings: () -> Unit,
     onReconnect: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showKeyboardDialog by remember { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -135,8 +146,11 @@ fun RemoteScreen(
                 container = MaterialTheme.colorScheme.primaryContainer,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            // Android TV has no "exit" key; the apps list is the useful
-            // equivalent on Google TV.
+            KeyButton(
+                icon = Icons.Rounded.Keyboard,
+                description = "Clavier / Saisie de texte",
+                onClick = { showKeyboardDialog = true },
+            )
             TextKey(label = "APPS", onClick = { onPress(AtvKey.ALL_APPS) })
         }
 
@@ -236,6 +250,16 @@ fun RemoteScreen(
             )
         }
     }
+
+    if (showKeyboardDialog) {
+        KeyboardInputDialog(
+            onDismiss = { showKeyboardDialog = false },
+            onSend = { text, enter ->
+                onSendText(text, enter)
+                showKeyboardDialog = false
+            },
+        )
+    }
 }
 
 @Composable
@@ -303,4 +327,54 @@ private fun StatusHeader(
             )
         }
     }
+}
+
+@Composable
+private fun KeyboardInputDialog(
+    onDismiss: () -> Unit,
+    onSend: (String, Boolean) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Saisie de texte sur la TV") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Tapez ou collez votre texte (recherche, mot de passe, URL...). Il sera inséré dans le champ actif de la TV.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("Votre texte ici...") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = false,
+                    maxLines = 3,
+                )
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = { onSend(text, false) },
+                    enabled = text.isNotEmpty(),
+                ) {
+                    Text("Envoyer")
+                }
+                Button(
+                    onClick = { onSend(text, true) },
+                    enabled = text.isNotEmpty(),
+                ) {
+                    Text("Envoyer ↵")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Annuler")
+            }
+        }
+    )
 }

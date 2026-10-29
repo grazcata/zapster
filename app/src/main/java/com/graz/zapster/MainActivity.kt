@@ -72,6 +72,7 @@ private fun TvRemoteApp(viewModel: RemoteViewModel = viewModel()) {
             RemoteScreen(
                 state = state,
                 onPress = viewModel::press,
+                onSendText = viewModel::sendText,
                 onLaunchApp = viewModel::launchApp,
                 onPower = viewModel::setPower,
                 onOpenSettings = viewModel::openSettings,
