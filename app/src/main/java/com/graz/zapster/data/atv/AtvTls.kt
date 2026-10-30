@@ -63,6 +63,8 @@ object AtvTls {
 
         val socket = context.socketFactory.createSocket() as SSLSocket
         socket.connect(InetSocketAddress(host, port), timeoutMs)
+        socket.tcpNoDelay = true
+        socket.keepAlive = true
         socket.soTimeout = readTimeoutMs
         socket.startHandshake()
         Log.d(TAG, "TLS up to $host:$port, cipher=${socket.session.cipherSuite}")

@@ -145,7 +145,7 @@ class AtvRemoteClient(
             // Unanswered pings are treated by the TV as a dead client.
             msg.has(FIELD_PING_REQUEST) -> {
                 val value = msg.message(FIELD_PING_REQUEST)?.num(1) ?: 0L
-                send { message(FIELD_PING_RESPONSE) { varint(1, value) } }
+                sendImmediately { message(FIELD_PING_RESPONSE) { varint(1, value) } }
             }
 
             msg.has(FIELD_START) -> {
@@ -194,6 +194,24 @@ class AtvRemoteClient(
     }
 
     /**
+     * Sends an urgent response directly without waiting behind user input queues.
+     * Essential for PING replies so the TV does not drop the TLS session.
+     */
+    private fun sendImmediately(build: ProtoWriter.() -> Unit) {
+        val payload = ProtoWriter().apply(build).toByteArray()
+        val stream = output ?: return
+        runCatching {
+            synchronized(stream) {
+                stream.writeFramed(payload)
+            }
+        }.onFailure {
+            Log.w(TAG, "sendImmediately failed", it)
+            ready = false
+            onDisconnect(it.message ?: "Could not reach the TV")
+        }
+    }
+
+    /**
      * Encodes on the calling thread but always writes on [writer].
      *
      * Key presses arrive from the UI thread, where Android forbids network I/O
@@ -208,12 +226,15 @@ class AtvRemoteClient(
         }
         runCatching {
             writer.execute {
-                runCatching { stream.writeFramed(payload) }
-                    .onFailure {
-                        Log.w(TAG, "send failed", it)
-                        ready = false
-                        onDisconnect(it.message ?: "Could not reach the TV")
+                runCatching {
+                    synchronized(stream) {
+                        stream.writeFramed(payload)
                     }
+                }.onFailure {
+                    Log.w(TAG, "send failed", it)
+                    ready = false
+                    onDisconnect(it.message ?: "Could not reach the TV")
+                }
             }
         }.onFailure { Log.w(TAG, "writer rejected the message", it) }
     }

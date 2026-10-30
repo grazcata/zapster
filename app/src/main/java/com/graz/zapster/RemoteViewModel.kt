@@ -105,6 +105,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                         connection = ConnectionState.Error,
                         message = reason,
                     )
+                    // Auto-reconnect in background when connection drops
+                    scheduleReconnect()
                 },
             )
             remote = client
@@ -136,6 +138,20 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
             text.contains("SSL", true) || text.contains("certificate", true) ->
                 "The TV no longer trusts this app — pair again"
             else -> "Cannot reach the TV at ${_state.value.settings.host}"
+        }
+    }
+
+    private var reconnectJob: kotlinx.coroutines.Job? = null
+
+    private fun scheduleReconnect() {
+        if (!_state.value.settings.isConfigured) return
+        reconnectJob?.cancel()
+        reconnectJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(2000)
+            if (_state.value.connection != ConnectionState.Connected) {
+                Log.d(TAG, "Attempting automatic background reconnection...")
+                connect()
+            }
         }
     }
 
@@ -256,7 +272,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun press(keyCode: Int) {
         val client = remote
         if (client == null || !client.isConnected) {
-            report("Not connected to the TV")
+            connect()
+            report("Connexion à la TV en cours...")
             return
         }
         haptic()
@@ -267,7 +284,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun sendText(text: String, pressEnter: Boolean = false) {
         val client = remote
         if (client == null || !client.isConnected) {
-            report("Not connected to the TV")
+            connect()
+            report("Connexion à la TV en cours...")
             return
         }
         haptic()
@@ -283,7 +301,8 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     fun launchApp(link: String) {
         val client = remote
         if (client == null || !client.isConnected) {
-            report("Not connected to the TV")
+            connect()
+            report("Connexion à la TV en cours...")
             return
         }
         haptic()
