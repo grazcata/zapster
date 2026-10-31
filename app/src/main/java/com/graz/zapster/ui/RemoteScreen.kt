@@ -108,6 +108,11 @@ fun RemoteScreen(
             onReconnect = onReconnect,
         )
 
+        // Now Playing Banner (Movie title, Channel, Active App)
+        if (state.connection == ConnectionState.Connected && state.media.hasMedia) {
+            NowPlayingCard(media = state.media)
+        }
+
         KeyRow {
             KeyButton(
                 icon = Icons.Rounded.PowerSettingsNew,
@@ -434,6 +439,48 @@ private fun KeyboardInputDialog(
             }
         }
     )
+}
+
+@Composable
+private fun NowPlayingCard(media: com.graz.zapster.NowPlayingMedia) {
+    androidx.compose.material3.Surface(
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Row(
+            modifier = Modifier.padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                modifier = Modifier
+                    .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = media.app ?: "TV",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = media.title ?: (media.app ?: "En cours de lecture"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (media.isPlaying) "▶ En lecture sur la TV" else "⏸ En pause sur la TV",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
 
 @Composable

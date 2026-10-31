@@ -40,6 +40,13 @@ data class SideloadStatus(
     val httpFallbackUrl: String? = null,
 )
 
+data class NowPlayingMedia(
+    val hasMedia: Boolean = false,
+    val title: String? = null,
+    val app: String? = null,
+    val isPlaying: Boolean = false,
+)
+
 data class UiState(
     val settings: TvSettings = TvSettings(),
     val settingsLoaded: Boolean = false,
@@ -53,6 +60,7 @@ data class UiState(
     val pairing: PairingStage = PairingStage.Idle,
     val pairingHost: String = "",
     val sideload: SideloadStatus = SideloadStatus(),
+    val media: NowPlayingMedia = NowPlayingMedia(),
 )
 
 class RemoteViewModel(app: Application) : AndroidViewModel(app) {
@@ -118,6 +126,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                         powered = client.isOn,
                         message = null,
                     )
+                    startMediaPolling(settings.host)
                 },
                 onFailure = { error ->
                     Log.w(TAG, "Remote connection to ${settings.host} failed", error)
@@ -142,6 +151,7 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private var reconnectJob: kotlinx.coroutines.Job? = null
+    private var mediaPollJob: kotlinx.coroutines.Job? = null
 
     private fun scheduleReconnect() {
         if (!_state.value.settings.isConfigured) return
@@ -152,6 +162,68 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                 Log.d(TAG, "Attempting automatic background reconnection...")
                 connect()
             }
+        }
+    }
+
+    private fun startMediaPolling(host: String) {
+        mediaPollJob?.cancel()
+        mediaPollJob = viewModelScope.launch(Dispatchers.IO) {
+            while (_state.value.connection == ConnectionState.Connected) {
+                try {
+                    val media = queryMediaSession(host)
+                    _state.value = _state.value.copy(media = media)
+                } catch (ignored: Exception) {}
+                kotlinx.coroutines.delay(4000)
+            }
+        }
+    }
+
+    private fun queryMediaSession(host: String): NowPlayingMedia {
+        return try {
+            dadb.Dadb.create(host, 5555).use { dadbClient ->
+                val response = dadbClient.shell("dumpsys media_session").allOutput
+                var title: String? = null
+                var pkg: String? = null
+                var isPlaying = false
+
+                val descMatch = Regex("""description=([^,\n]+)""").find(response)
+                if (descMatch != null) {
+                    val candidate = descMatch.groupValues[1].trim()
+                    if (candidate.isNotBlank() && candidate != "null") {
+                        title = candidate
+                    }
+                }
+
+                val pkgMatch = Regex("""package=([a-zA-Z0-9._]+)""").find(response)
+                if (pkgMatch != null) {
+                    pkg = pkgMatch.groupValues[1].trim()
+                }
+
+                val stateMatch = Regex("""state=PlaybackState\s*\{state=(\d+)""").find(response)
+                if (stateMatch != null) {
+                    isPlaying = stateMatch.groupValues[1] == "3"
+                }
+
+                val appNames = mapOf(
+                    "com.stremio.one" to "Stremio",
+                    "app.siptv.android" to "Smart IPTV",
+                    "org.smarttube.stable" to "SmartTube",
+                    "com.google.android.youtube.tv" to "YouTube",
+                    "com.netflix.ninja" to "Netflix",
+                    "org.jellyfin.androidtv" to "Jellyfin",
+                    "net.mbc.shahidTV" to "Shahid",
+                    "com.nst.iptvsmarterstvbox" to "IPTV Smarters"
+                )
+                val appName = if (pkg != null) appNames[pkg] ?: pkg else null
+                NowPlayingMedia(
+                    hasMedia = (title != null || appName != null),
+                    title = title,
+                    app = appName,
+                    isPlaying = isPlaying
+                )
+            }
+        } catch (e: Exception) {
+            NowPlayingMedia()
         }
     }
 
