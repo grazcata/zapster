@@ -40,6 +40,12 @@ object AtvKey {
     const val TV_INPUT_HDMI_3 = 245
     const val TV_INPUT_HDMI_4 = 246
     const val ALL_APPS = 284
+
+    // Android TV Teletext / IPTV color keys
+    const val PROG_RED = 183
+    const val PROG_GREEN = 184
+    const val PROG_YELLOW = 185
+    const val PROG_BLUE = 186
 }
 
 /**

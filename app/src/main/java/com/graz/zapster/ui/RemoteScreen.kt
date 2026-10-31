@@ -163,6 +163,38 @@ fun RemoteScreen(
             TextKey(label = "APPS", onClick = { onPress(AtvKey.ALL_APPS) })
         }
 
+        // Color buttons (Red, Green, Yellow, Blue) for IPTV, Teletext and TV shortcuts
+        KeyRow(arrangement = Arrangement.spacedBy(10.dp)) {
+            PillButton(
+                label = "● Rouge",
+                onClick = { onPress(AtvKey.PROG_RED) },
+                modifier = Modifier.weight(1f),
+                container = Color(0xFFDC2626),
+                tint = Color.White,
+            )
+            PillButton(
+                label = "● Vert",
+                onClick = { onPress(AtvKey.PROG_GREEN) },
+                modifier = Modifier.weight(1f),
+                container = Color(0xFF16A34A),
+                tint = Color.White,
+            )
+            PillButton(
+                label = "● Jaune",
+                onClick = { onPress(AtvKey.PROG_YELLOW) },
+                modifier = Modifier.weight(1f),
+                container = Color(0xFFCA8A04),
+                tint = Color.White,
+            )
+            PillButton(
+                label = "● Bleu",
+                onClick = { onPress(AtvKey.PROG_BLUE) },
+                modifier = Modifier.weight(1f),
+                container = Color(0xFF2563EB),
+                tint = Color.White,
+            )
+        }
+
         // Kept above the fold: these are the two most-used destinations, and
         // they were easy to miss at the bottom of the screen.
         KeyRow(arrangement = Arrangement.spacedBy(12.dp)) {
