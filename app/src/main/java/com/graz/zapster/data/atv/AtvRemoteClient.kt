@@ -62,6 +62,7 @@ class AtvRemoteClient(
     private val host: String,
     private val identity: AtvIdentity,
     private val onPowerState: (Boolean) -> Unit = {},
+    private val onAppUpdated: (String, String?) -> Unit = { _, _ -> },
     private val onDisconnect: (String) -> Unit = {},
 ) : Closeable {
 
@@ -159,6 +160,18 @@ class AtvRemoteClient(
                 Log.d(TAG, "TV reports isOn=$isOn")
                 onPowerState(isOn)
                 ready = true
+            }
+
+            // TV notifies active app / input field updates via IME key inject (field 20)
+            msg.has(FIELD_IME_KEY_INJECT) -> {
+                val imeMsg = msg.message(FIELD_IME_KEY_INJECT)
+                val appInfo = imeMsg?.message(1) // app_info field 1
+                val pkg = appInfo?.bytes(12)?.toString(Charsets.UTF_8)?.trim()
+                val label = appInfo?.bytes(10)?.toString(Charsets.UTF_8)?.trim()
+                if (!pkg.isNullOrEmpty()) {
+                    Log.d(TAG, "TV active app updated: pkg=$pkg, label=$label")
+                    onAppUpdated(pkg, label)
+                }
             }
         }
     }
@@ -270,6 +283,7 @@ class AtvRemoteClient(
         const val FIELD_PING_REQUEST = 8
         const val FIELD_PING_RESPONSE = 9
         const val FIELD_KEY_INJECT = 10
+        const val FIELD_IME_KEY_INJECT = 20
         const val FIELD_IME_BATCH_EDIT = 21
         const val FIELD_START = 40
         const val FIELD_APP_LINK = 90

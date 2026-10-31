@@ -108,6 +108,27 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                 onPowerState = { on ->
                     _state.value = _state.value.copy(powered = on)
                 },
+                onAppUpdated = { pkg, label ->
+                    val appNames = mapOf(
+                        "com.stremio.one" to "Stremio",
+                        "app.siptv.android" to "Smart IPTV",
+                        "org.smarttube.stable" to "SmartTube",
+                        "com.google.android.youtube.tv" to "YouTube",
+                        "com.netflix.ninja" to "Netflix",
+                        "org.jellyfin.androidtv" to "Jellyfin",
+                        "net.mbc.shahidTV" to "Shahid",
+                        "com.nst.iptvsmarterstvbox" to "IPTV Smarters"
+                    )
+                    val friendlyName = appNames[pkg] ?: label ?: pkg
+                    val currentMedia = _state.value.media
+                    _state.value = _state.value.copy(
+                        media = currentMedia.copy(
+                            hasMedia = true,
+                            app = friendlyName,
+                            title = currentMedia.title ?: friendlyName
+                        )
+                    )
+                },
                 onDisconnect = { reason ->
                     _state.value = _state.value.copy(
                         connection = ConnectionState.Error,
