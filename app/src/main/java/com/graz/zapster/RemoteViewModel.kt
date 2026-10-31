@@ -189,12 +189,41 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
     private fun startMediaPolling(host: String) {
         mediaPollJob?.cancel()
         mediaPollJob = viewModelScope.launch(Dispatchers.IO) {
+            val serverIp = "192.168.1.66"
             while (_state.value.connection == ConnectionState.Connected) {
                 try {
-                    val media = queryMediaSession(host)
-                    _state.value = _state.value.copy(media = media)
-                } catch (ignored: Exception) {}
-                kotlinx.coroutines.delay(4000)
+                    // 1. Fetch live media state from zapster-web server on Raspberry Pi
+                    val url = java.net.URL("http://$serverIp:8090/api/status?ip=$host")
+                    val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
+                        connectTimeout = 1500
+                        readTimeout = 1500
+                    }
+                    val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
+                    val json = org.json.JSONObject(jsonStr)
+                    val mediaObj = json.optJSONObject("media")
+                    if (mediaObj != null && mediaObj.optBoolean("has_media", false)) {
+                        val title = mediaObj.optString("title").takeIf { it.isNotBlank() && it != "null" }
+                        val app = mediaObj.optString("app").takeIf { it.isNotBlank() && it != "null" }
+                        val playing = mediaObj.optBoolean("playing", false)
+                        _state.value = _state.value.copy(
+                            media = NowPlayingMedia(
+                                hasMedia = true,
+                                title = title,
+                                app = app,
+                                isPlaying = playing
+                            )
+                        )
+                    }
+                } catch (ignored: Exception) {
+                    // Fallback to local dadb if server unreachable
+                    try {
+                        val localMedia = queryMediaSession(host)
+                        if (localMedia.hasMedia) {
+                            _state.value = _state.value.copy(media = localMedia)
+                        }
+                    } catch (ignoredLocal: Exception) {}
+                }
+                kotlinx.coroutines.delay(3000)
             }
         }
     }

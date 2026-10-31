@@ -361,7 +361,13 @@ private fun StatusHeader(
                     state.settings.host.isNotBlank()
                 ) {
                     Text(
-                        text = state.settings.host,
+                        text = "${state.settings.host} • v1.3.2",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else {
+                    Text(
+                        text = "v1.3.2",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
