@@ -109,7 +109,7 @@ fun RemoteScreen(
         )
 
         // Now Playing Banner (Movie title, Channel, Active App)
-        if (state.connection == ConnectionState.Connected && state.media.hasMedia) {
+        if (state.connection == ConnectionState.Connected) {
             NowPlayingCard(media = state.media)
         }
 
@@ -473,14 +473,14 @@ private fun NowPlayingCard(media: com.graz.zapster.NowPlayingMedia) {
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = media.title ?: (media.app ?: "En cours de lecture"),
+                    text = if (media.hasMedia) (media.title ?: media.app ?: "Média actif") else "Prêt à diffuser",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = if (media.isPlaying) "▶ En lecture sur la TV" else "⏸ En pause sur la TV",
+                    text = if (!media.hasMedia) "Aucune lecture active" else if (media.isPlaying) "▶ En lecture sur la TV" else "⏸ En pause sur la TV",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

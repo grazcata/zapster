@@ -191,12 +191,13 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
         mediaPollJob = viewModelScope.launch(Dispatchers.IO) {
             val serverIp = "192.168.1.66"
             while (_state.value.connection == ConnectionState.Connected) {
+                var found = false
                 try {
                     // 1. Fetch live media state from zapster-web server on Raspberry Pi
                     val url = java.net.URL("http://$serverIp:8090/api/status?ip=$host")
                     val conn = (url.openConnection() as java.net.HttpURLConnection).apply {
-                        connectTimeout = 1500
-                        readTimeout = 1500
+                        connectTimeout = 2000
+                        readTimeout = 2000
                     }
                     val jsonStr = conn.inputStream.bufferedReader().use { it.readText() }
                     val json = org.json.JSONObject(jsonStr)
@@ -208,13 +209,18 @@ class RemoteViewModel(app: Application) : AndroidViewModel(app) {
                         _state.value = _state.value.copy(
                             media = NowPlayingMedia(
                                 hasMedia = true,
-                                title = title,
-                                app = app,
+                                title = title ?: app ?: "Média en cours",
+                                app = app ?: "TV",
                                 isPlaying = playing
                             )
                         )
+                        found = true
                     }
-                } catch (ignored: Exception) {
+                } catch (e: Exception) {
+                    Log.w(TAG, "Hub media poll failed: ${e.message}")
+                }
+
+                if (!found) {
                     // Fallback to local dadb if server unreachable
                     try {
                         val localMedia = queryMediaSession(host)
